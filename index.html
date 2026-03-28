@@ -507,14 +507,10 @@
         fixedCellPx = s;
       }
 
-      function centerGameViewportScroll() {
+      function resetGameViewportScrollLeft() {
         const host = document.querySelector(".game-viewport");
         if (!host) return;
-        if (host.scrollWidth <= host.clientWidth + 2) {
-          host.scrollLeft = 0;
-          return;
-        }
-        host.scrollLeft = Math.max(0, (host.scrollWidth - host.clientWidth) / 2);
+        host.scrollLeft = 0;
       }
 
       function applyFixedCellSize() {
@@ -523,7 +519,7 @@
         requestAnimationFrame(function () {
           requestAnimationFrame(function () {
             clampCellIfAdvancedOverflows();
-            centerGameViewportScroll();
+            resetGameViewportScrollLeft();
           });
         });
       }
