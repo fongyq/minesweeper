@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>扫雷</title>
+  <link rel="icon" href="./magnum.ico" type="image/x-icon">
+  <style>
+    :root {
+      --win-bg: #c0c0c0;
+      --win-hi: #ffffff;
+      --win-sh: #808080;
+      --win-deep: #000000;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html {
+      min-height: 100%;
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    body {
+      min-height: 100%;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    body {
+      font-family: "MS Sans Serif", "Microsoft Sans Serif", Tahoma, Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+      background: #ffffff;
+      color: #000080;
+      margin: 0;
+    }
+
+    .app {
+      min-height: 100%;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+        max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+      box-sizing: border-box;
+      min-height: 0;
+    }
+
+    .menu-bar {
+      display: flex;
+      gap: 0;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .menu-bar button {
+      font: inherit;
+      color: #000080;
+      background: transparent;
+      border: none;
+      padding: 6px 14px;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .menu-bar button:hover {
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    .menu-bar button.active {
+      font-weight: bold;
+      text-decoration: none;
+      cursor: default;
+    }
+
+    .outer-frame {
+      background: var(--win-bg);
+      border: 3px solid;
+      border-color: var(--win-hi) var(--win-sh) var(--win-sh) var(--win-hi);
+      padding: 5px;
+      display: flex;
+      flex-direction: column;
+      flex: none;
+      width: max-content;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+
+    .inner-frame {
+      border: 2px solid;
+      border-color: var(--win-sh) var(--win-hi) var(--win-hi) var(--win-sh);
+      display: inline-flex;
+      flex-direction: column;
+      align-items: stretch;
+      padding: 4px;
+      flex: none;
+      width: auto;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 0;
+      padding: 5px 6px;
+      border: 2px solid;
+      border-color: var(--win-sh) var(--win-hi) var(--win-hi) var(--win-sh);
+      background: var(--win-bg);
+      flex-shrink: 0;
+      box-sizing: border-box;
+    }
+
+    /* 黑底红字：严格等宽数字，在框内居中 */
+    .lcd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      background: #000;
+      padding: 3px 4px;
+      border: 1px solid;
+      border-color: var(--win-sh) var(--win-hi) var(--win-hi) var(--win-sh);
+      width: 3.35ch;
+      min-width: 3.35ch;
+      max-width: 3.35ch;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", Courier, monospace;
+      font-variant-numeric: tabular-nums;
+      font-weight: bold;
+      font-size: 22px;
+      line-height: 1.1;
+      letter-spacing: 0;
+      color: #ff0000;
+      flex-shrink: 0;
+      text-align: center;
+    }
+
+    .face-btn {
+      width: 38px;
+      height: 38px;
+      flex-shrink: 0;
+      border: 3px solid;
+      border-color: var(--win-hi) var(--win-sh) var(--win-sh) var(--win-hi);
+      background: var(--win-bg);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .face-btn:active:not(:disabled),
+    .face-btn.pressed {
+      border-color: var(--win-sh) var(--win-hi) var(--win-hi) var(--win-sh);
+      padding: 2px 0 0 2px;
+    }
+
+    .face-btn:disabled {
+      cursor: default;
+    }
+
+    .face-btn svg {
+      display: block;
+      width: 28px;
+      height: 28px;
+    }
+
+    /* 与棋盘同宽，在 inner-frame 内居中 */
+    .board-wrap {
+      border: 3px solid;
+      border-color: var(--win-sh) var(--win-hi) var(--win-hi) var(--win-sh);
+      background: var(--win-bg);
+      touch-action: manipulation;
+      -webkit-overflow-scrolling: touch;
+      width: fit-content;
+      width: -moz-fit-content;
+      max-width: 100%;
+      min-width: 0;
+      flex: none;
+      margin: 0 auto;
+      padding: 0;
+      display: block;
+      box-sizing: border-box;
+      align-self: center;
+      overflow-x: auto;
+      overflow-y: visible;
+    }
+
+    .board {
+      display: grid;
+      gap: 0;
+      width: max-content;
+      margin: 0;
+    }
+
+    .cell {
+      width: var(--cell, 20px);
+      height: var(--cell, 20px);
+      border: 2px solid;
+      border-color: var(--win-hi) var(--win-sh) var(--win-sh) var(--win-hi);
+      background: var(--win-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: calc(var(--cell, 20px) * 0.62);
+      line-height: 1;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .cell.revealed {
+      border-width: 1px;
+      border-color: var(--win-sh);
+      background: #bdbdbd;
+      cursor: default;
+    }
+
+    .cell.revealed.mine-hit {
+      background: #ff0000;
+    }
+
+    .cell.revealed.mine-wrong {
+      background: #bdbdbd;
+    }
+
+    .cell.flag-wrong::after {
+      content: "";
+      position: absolute;
+      inset: 2px;
+      background: linear-gradient(45deg, transparent 44%, #c00000 44%, #c00000 56%, transparent 56%),
+                  linear-gradient(-45deg, transparent 44%, #c00000 44%, #c00000 56%, transparent 56%);
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .n1 { color: #0000ff; }
+    .n2 { color: #008200; }
+    .n3 { color: #ff0000; }
+    .n4 { color: #000084; }
+    .n5 { color: #840000; }
+    .n6 { color: #008284; }
+    .n7 { color: #000000; }
+    .n8 { color: #808080; }
+
+    .cell-gfx {
+      display: block;
+      width: min(72%, calc(var(--cell, 20px) * 0.72));
+      height: min(72%, calc(var(--cell, 20px) * 0.72));
+      max-width: 26px;
+      max-height: 26px;
+      pointer-events: none;
+    }
+
+    .cell:not(.revealed) .cell-gfx--flag {
+      width: min(58%, calc(var(--cell, 20px) * 0.58));
+      height: min(78%, calc(var(--cell, 20px) * 0.78));
+      max-width: 22px;
+      max-height: 28px;
+    }
+
+    @media (max-width: 480px) {
+      .lcd {
+        font-size: 18px;
+        width: 3.35ch;
+        min-width: 3.35ch;
+        max-width: 3.35ch;
+        padding: 2px 3px;
+      }
+      .face-btn {
+        width: 34px;
+        height: 34px;
+      }
+      .face-btn svg {
+        width: 24px;
+        height: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+  <nav class="menu-bar" aria-label="难度">
+    <button type="button" data-level="beginner" class="active">初级</button>
+    <button type="button" data-level="intermediate">中级</button>
+    <button type="button" data-level="advanced">高级</button>
+  </nav>
+
+  <div class="outer-frame">
+    <div class="inner-frame">
+      <div class="status-bar">
+        <div class="lcd" id="mineCount" aria-live="polite" aria-label="剩余雷数">000</div>
+        <button type="button" class="face-btn" id="faceBtn" title="重新开始" aria-label="重新开始"></button>
+        <div class="lcd" id="timer" aria-label="计时秒数">000</div>
+      </div>
+      <div class="board-wrap">
+        <div class="board" id="board" role="grid" aria-label="雷区"></div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <script>
+    (function () {
+      const LEVELS = {
+        beginner: { rows: 9, cols: 9, mines: 10 },
+        intermediate: { rows: 16, cols: 16, mines: 40 },
+        advanced: { rows: 16, cols: 30, mines: 99 },
+      };
+
+      let levelKey = "beginner";
+      let rows, cols, mineTotal;
+      let board = [];
+      let minesPlaced = false;
+      let gameOver = false;
+      let won = false;
+      let timerId = null;
+      let seconds = 0;
+      let faceMode = "smile";
+      let suppressNextClick = false;
+
+      const boardEl = document.getElementById("board");
+      const mineEl = document.getElementById("mineCount");
+      const timerEl = document.getElementById("timer");
+      const faceBtn = document.getElementById("faceBtn");
+
+      const ADV_COLS = 30;
+      const ADV_ROWS = 16;
+
+      let fixedCellPx = 20;
+
+      const GFX_FLAG =
+        '<svg class="cell-gfx cell-gfx--flag" viewBox="0 0 16 22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+        '<rect x="4.8" y="2" width="2" height="17.8" fill="#000"/>' +
+        '<rect x="5.6" y="2.2" width="0.9" height="17.4" fill="#3a3a3a"/>' +
+        '<polygon points="7.2,2.8 7.2,11.2 14.8,7" fill="#600"/>' +
+        '<polygon points="7.2,3.2 7.2,10.8 14,7" fill="#c01010"/>' +
+        '<polygon points="7.2,4 7.2,10 12.5,7" fill="#e82828"/>' +
+        "</svg>";
+
+      const GFX_MINE =
+        '<svg class="cell-gfx" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+        '<circle cx="8" cy="9.2" r="5.4" fill="#000"/>' +
+        '<circle cx="8" cy="9.2" r="4.6" fill="#141414"/>' +
+        '<circle cx="8" cy="9.2" r="3.9" fill="#222"/>' +
+        '<ellipse cx="5.6" cy="7.1" rx="1.5" ry="1.1" fill="#8a8a8a" opacity="0.45"/>' +
+        '<ellipse cx="6.2" cy="6.5" rx="0.55" ry="0.4" fill="#ccc" opacity="0.5"/>' +
+        '<rect x="6" y="1.4" width="4" height="3.2" rx="0.2" fill="#353535"/>' +
+        '<rect x="6.6" y="0.9" width="2.8" height="1.2" fill="#4a4a4a"/>' +
+        '<line x1="8" y1="0.8" x2="8" y2="0" stroke="#666" stroke-width="0.7"/>' +
+        '<line x1="11.2" y1="2.2" x2="12" y2="1.4" stroke="#666" stroke-width="0.55"/>' +
+        '<line x1="4.8" y1="2.2" x2="4" y2="1.4" stroke="#666" stroke-width="0.55"/>' +
+        "</svg>";
+
+      function fmt3(n) {
+        if (n < -99) n = -99;
+        if (n > 999) n = 999;
+        if (n < 0) return "-" + String(Math.abs(n)).padStart(2, "0");
+        return String(n).padStart(3, "0");
+      }
+
+      /* 与当前 CSS 一致：outer 5+3*2 + inner 4*2+2*2 + status 与 board-wrap 3*2 */
+      const OUTER_PAD_BORDER = 16;
+      const INNER_PAD_BORDER = 12;
+      const BOARD_WRAP_BORDER = 6;
+      const STATUS_MIN_WIDTH = 172;
+      const STATUS_HEIGHT = 58;
+
+      function outerFrameSizeForAdvancedCell(s) {
+        const boardW = BOARD_WRAP_BORDER + ADV_COLS * s;
+        const boardH = BOARD_WRAP_BORDER + ADV_ROWS * s;
+        const contentW = Math.max(STATUS_MIN_WIDTH, boardW);
+        const outerW = OUTER_PAD_BORDER + INNER_PAD_BORDER + contentW;
+        const outerH = OUTER_PAD_BORDER + INNER_PAD_BORDER + STATUS_HEIGHT + boardH;
+        return { w: outerW, h: outerH };
+      }
+
+      function pageDimensions() {
+        const vv = window.visualViewport;
+        const w = vv ? vv.width : document.documentElement.clientWidth || window.innerWidth;
+        const h = vv ? vv.height : document.documentElement.clientHeight || window.innerHeight;
+        return { w: w, h: h };
+      }
+
+      function computeFixedCell() {
+        const page = pageDimensions();
+        const maxOuterW = page.w * 0.9;
+        const maxOuterH = page.h * 0.9;
+        let lo = 8;
+        let hi = 100;
+        let best = 12;
+        for (let i = 0; i < 28; i++) {
+          const mid = (lo + hi) / 2;
+          const m = outerFrameSizeForAdvancedCell(mid);
+          if (m.w <= maxOuterW + 0.5 && m.h <= maxOuterH + 0.5) {
+            best = mid;
+            lo = mid;
+          } else {
+            hi = mid;
+          }
+        }
+        fixedCellPx = Math.max(10, Math.min(80, Math.floor(best)));
+        return fixedCellPx;
+      }
+
+      function clampCellIfAdvancedOverflows() {
+        if (levelKey !== "advanced") return;
+        const outer = document.querySelector(".outer-frame");
+        if (!outer) return;
+        const page = pageDimensions();
+        const maxOuterW = page.w * 0.9;
+        const maxOuterH = page.h * 0.9;
+        let s = fixedCellPx;
+        while (s > 8) {
+          const r = outer.getBoundingClientRect();
+          if (r.width <= maxOuterW + 1 && r.height <= maxOuterH + 1) break;
+          s -= 1;
+          boardEl.style.setProperty("--cell", s + "px");
+          void outer.offsetWidth;
+        }
+        fixedCellPx = s;
+      }
+
+      function applyFixedCellSize() {
+        computeFixedCell();
+        boardEl.style.setProperty("--cell", fixedCellPx + "px");
+        requestAnimationFrame(function () {
+          requestAnimationFrame(clampCellIfAdvancedOverflows);
+        });
+      }
+
+      function setMineLcd(n) {
+        const t = fmt3(n);
+        mineEl.textContent = t;
+        mineEl.setAttribute("aria-label", "剩余雷数 " + t);
+      }
+
+      function setTimerLcd(n) {
+        const t = fmt3(n);
+        timerEl.textContent = t;
+        timerEl.setAttribute("aria-label", "计时 " + t + " 秒");
+      }
+
+      function setFace(mode) {
+        faceMode = mode;
+        const yellow = "#ffd800";
+        const black = "#000";
+        let inner = "";
+        if (mode === "smile") {
+          inner = `<circle cx="14" cy="14" r="12" fill="${yellow}" stroke="${black}" stroke-width="1"/>
+            <circle cx="10" cy="11" r="1.5" fill="${black}"/><circle cx="18" cy="11" r="1.5" fill="${black}"/>
+            <path d="M 9 18 Q 14 22 19 18" fill="none" stroke="${black}" stroke-width="1.5" stroke-linecap="round"/>`;
+        } else if (mode === "wow") {
+          inner = `<circle cx="14" cy="14" r="12" fill="${yellow}" stroke="${black}" stroke-width="1"/>
+            <ellipse cx="10" cy="10" rx="2" ry="3" fill="${black}"/><ellipse cx="18" cy="10" rx="2" ry="3" fill="${black}"/>
+            <circle cx="14" cy="19" r="2.5" fill="${black}"/>`;
+        } else if (mode === "dead") {
+          inner = `<circle cx="14" cy="14" r="12" fill="${yellow}" stroke="${black}" stroke-width="1"/>
+            <line x1="8" y1="9" x2="12" y2="13" stroke="${black}" stroke-width="1.5"/><line x1="12" y1="9" x2="8" y2="13" stroke="${black}" stroke-width="1.5"/>
+            <line x1="16" y1="9" x2="20" y2="13" stroke="${black}" stroke-width="1.5"/><line x1="20" y1="9" x2="16" y2="13" stroke="${black}" stroke-width="1.5"/>
+            <path d="M 9 20 Q 14 17 19 20" fill="none" stroke="${black}" stroke-width="1.5"/>`;
+        } else if (mode === "win") {
+          inner = `<circle cx="14" cy="14" r="12" fill="${yellow}" stroke="${black}" stroke-width="1"/>
+            <rect x="6" y="10" width="16" height="5" rx="1" fill="${black}"/>
+            <circle cx="10" cy="12" r="2" fill="${yellow}"/><circle cx="18" cy="12" r="2" fill="${yellow}"/>
+            <path d="M 9 19 Q 14 23 19 19" fill="none" stroke="${black}" stroke-width="1.5" stroke-linecap="round"/>`;
+        }
+        faceBtn.innerHTML = `<svg viewBox="0 0 28 28" aria-hidden="true">${inner}</svg>`;
+      }
+
+      function stopTimer() {
+        if (timerId) {
+          clearInterval(timerId);
+          timerId = null;
+        }
+      }
+
+      function startTimer() {
+        stopTimer();
+        seconds = 0;
+        setTimerLcd(0);
+        timerId = setInterval(function () {
+          if (seconds < 999) seconds++;
+          setTimerLcd(seconds);
+        }, 1000);
+      }
+
+      function countFlags() {
+        let n = 0;
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            if (board[r][c].flagged) n++;
+          }
+        }
+        return n;
+      }
+
+      function updateMineDisplay() {
+        setMineLcd(mineTotal - countFlags());
+      }
+
+      function neighbors(r, c) {
+        const list = [];
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            const nr = r + dr, nc = c + dc;
+            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) list.push([nr, nc]);
+          }
+        }
+        return list;
+      }
+
+      function countAdjacentMines(r, c) {
+        let n = 0;
+        for (const [nr, nc] of neighbors(r, c)) {
+          if (board[nr][nc].mine) n++;
+        }
+        return n;
+      }
+
+      function placeMines(safeR, safeC) {
+        const exclude = new Set();
+        for (const [nr, nc] of neighbors(safeR, safeC)) exclude.add(nr + "," + nc);
+        exclude.add(safeR + "," + safeC);
+
+        const positions = [];
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            if (!exclude.has(r + "," + c)) positions.push([r, c]);
+          }
+        }
+
+        for (let i = positions.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [positions[i], positions[j]] = [positions[j], positions[i]];
+        }
+
+        for (let k = 0; k < mineTotal && k < positions.length; k++) {
+          const [r, c] = positions[k];
+          board[r][c].mine = true;
+        }
+        minesPlaced = true;
+      }
+
+      function revealCell(r, c) {
+        const cell = board[r][c];
+        if (cell.revealed || cell.flagged || gameOver) return;
+
+        if (!minesPlaced) {
+          placeMines(r, c);
+          startTimer();
+        }
+
+        if (cell.mine) {
+          cell.revealed = true;
+          gameOver = true;
+          won = false;
+          stopTimer();
+          setFace("dead");
+          revealAllMines(r, c);
+          render();
+          return;
+        }
+
+        const stack = [[r, c]];
+        while (stack.length) {
+          const [cr, cc] = stack.pop();
+          const cur = board[cr][cc];
+          if (cur.revealed || cur.flagged || cur.mine) continue;
+          cur.revealed = true;
+          if (countAdjacentMines(cr, cc) === 0) {
+            for (const [nr, nc] of neighbors(cr, cc)) {
+              if (!board[nr][nc].revealed && !board[nr][nc].flagged) stack.push([nr, nc]);
+            }
+          }
+        }
+
+        if (checkWin()) {
+          gameOver = true;
+          won = true;
+          stopTimer();
+          setFace("win");
+          for (let rr = 0; rr < rows; rr++) {
+            for (let cc = 0; cc < cols; cc++) {
+              if (board[rr][cc].mine) board[rr][cc].flagged = true;
+            }
+          }
+        }
+        render();
+        updateMineDisplay();
+      }
+
+      function revealAllMines(hitR, hitC) {
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const cell = board[r][c];
+            if (cell.mine) {
+              cell.revealed = true;
+            } else if (cell.flagged) {
+              cell.revealed = true;
+              cell.flagged = false;
+              cell.wrongFlag = true;
+            }
+          }
+        }
+        board[hitR][hitC].mineHit = true;
+      }
+
+      function checkWin() {
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const cell = board[r][c];
+            if (!cell.mine && !cell.revealed) return false;
+          }
+        }
+        return true;
+      }
+
+      function toggleFlag(r, c) {
+        if (gameOver) return;
+        const cell = board[r][c];
+        if (cell.revealed) return;
+        cell.flagged = !cell.flagged;
+        updateMineDisplay();
+        render();
+      }
+
+      function render() {
+        boardEl.style.gridTemplateColumns = `repeat(${cols}, var(--cell))`;
+        boardEl.innerHTML = "";
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const data = board[r][c];
+            const el = document.createElement("div");
+            el.className = "cell";
+            el.setAttribute("role", "gridcell");
+            el.dataset.r = r;
+            el.dataset.c = c;
+
+            if (data.revealed) {
+              el.classList.add("revealed");
+              if (data.wrongFlag) {
+                el.classList.add("mine-wrong", "flag-wrong");
+                el.innerHTML = GFX_FLAG;
+              } else if (data.mine) {
+                el.innerHTML = GFX_MINE;
+                if (data.mineHit) el.classList.add("mine-hit");
+              } else {
+                const n = countAdjacentMines(r, c);
+                if (n > 0) {
+                  el.textContent = String(n);
+                  el.classList.add("n" + n);
+                }
+              }
+            } else if (data.flagged) {
+              el.innerHTML = GFX_FLAG;
+            }
+
+            boardEl.appendChild(el);
+          }
+        }
+      }
+
+      function newGame() {
+        clearTimeout(longTimer);
+        suppressNextClick = false;
+        longFired = false;
+        const L = LEVELS[levelKey];
+        rows = L.rows;
+        cols = L.cols;
+        mineTotal = L.mines;
+        board = [];
+        for (let r = 0; r < rows; r++) {
+          board[r] = [];
+          for (let c = 0; c < cols; c++) {
+            board[r][c] = {
+              mine: false,
+              revealed: false,
+              flagged: false,
+              wrongFlag: false,
+              mineHit: false,
+            };
+          }
+        }
+        minesPlaced = false;
+        gameOver = false;
+        won = false;
+        stopTimer();
+        seconds = 0;
+        setTimerLcd(0);
+        setFace("smile");
+        updateMineDisplay();
+        applyFixedCellSize();
+        render();
+      }
+
+      const LONG_PRESS_MS = 500;
+      let longTimer = null;
+      let longFired = false;
+      let touchStartR = -1;
+      let touchStartC = -1;
+
+      function bindBoardEvents() {
+        boardEl.addEventListener("mousedown", function (e) {
+          if (e.button === 0 && !gameOver && e.target.closest(".cell")) setFace("wow");
+        });
+
+        document.addEventListener("mouseup", function () {
+          if (!gameOver && faceMode !== "dead" && faceMode !== "win") setFace("smile");
+        });
+
+        boardEl.addEventListener("mouseup", function (e) {
+          if (e.button === 0 && !gameOver && faceMode !== "dead") setFace("smile");
+        });
+
+        boardEl.addEventListener("click", function (e) {
+          if (suppressNextClick) {
+            suppressNextClick = false;
+            return;
+          }
+          const cell = e.target.closest(".cell");
+          if (!cell || !boardEl.contains(cell)) return;
+          const r = +cell.dataset.r;
+          const c = +cell.dataset.c;
+          revealCell(r, c);
+        });
+
+        boardEl.addEventListener("auxclick", function (e) {
+          if (e.button === 1) e.preventDefault();
+        });
+
+        boardEl.addEventListener("contextmenu", function (e) {
+          const cell = e.target.closest(".cell");
+          if (!cell) return;
+          e.preventDefault();
+          toggleFlag(+cell.dataset.r, +cell.dataset.c);
+        });
+
+        boardEl.addEventListener("touchstart", function (e) {
+          if (gameOver) return;
+          const cell = e.target.closest(".cell");
+          if (!cell) return;
+          touchStartR = +cell.dataset.r;
+          touchStartC = +cell.dataset.c;
+          longFired = false;
+          clearTimeout(longTimer);
+          longTimer = setTimeout(function () {
+            longFired = true;
+            toggleFlag(touchStartR, touchStartC);
+            suppressNextClick = true;
+            if (navigator.vibrate) navigator.vibrate(15);
+          }, LONG_PRESS_MS);
+        }, { passive: true });
+
+        boardEl.addEventListener("touchmove", function () {
+          clearTimeout(longTimer);
+        }, { passive: true });
+
+        boardEl.addEventListener("touchend", function (e) {
+          clearTimeout(longTimer);
+          if (longFired) e.preventDefault();
+        });
+
+        boardEl.addEventListener("touchcancel", function () {
+          clearTimeout(longTimer);
+        });
+      }
+
+      faceBtn.addEventListener("mousedown", function () {
+        faceBtn.classList.add("pressed");
+      });
+      faceBtn.addEventListener("mouseup", function () {
+        faceBtn.classList.remove("pressed");
+      });
+      faceBtn.addEventListener("mouseleave", function () {
+        faceBtn.classList.remove("pressed");
+      });
+      faceBtn.addEventListener("click", function () {
+        newGame();
+      });
+
+      document.querySelectorAll(".menu-bar button").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          const key = btn.getAttribute("data-level");
+          if (!key || key === levelKey) return;
+          levelKey = key;
+          document.querySelectorAll(".menu-bar button").forEach(function (b) {
+            b.classList.toggle("active", b.getAttribute("data-level") === key);
+          });
+          newGame();
+        });
+      });
+
+      window.addEventListener("resize", applyFixedCellSize);
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", applyFixedCellSize);
+      }
+
+      if (typeof ResizeObserver !== "undefined") {
+        const appEl = document.querySelector(".app");
+        if (appEl) new ResizeObserver(applyFixedCellSize).observe(appEl);
+      }
+
+      setFace("smile");
+      bindBoardEvents();
+      newGame();
+    })();
+  </script>
+</body>
+</html>
