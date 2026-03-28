@@ -316,11 +316,13 @@
 
   <script>
     (function () {
-      const LEVELS = {
+      const LEVELS_BASE = {
         beginner: { rows: 9, cols: 9, mines: 10 },
         intermediate: { rows: 16, cols: 16, mines: 40 },
-        advanced: { rows: 16, cols: 30, mines: 99 },
       };
+
+      /** 窄屏竖屏（手机常见）：高级 16×30；否则与 PC 相同 30×16 */
+      const NARROW_PORTRAIT_MAX_W = 640;
 
       let levelKey = "beginner";
       let rows, cols, mineTotal;
@@ -338,10 +340,8 @@
       const timerEl = document.getElementById("timer");
       const faceBtn = document.getElementById("faceBtn");
 
-      const ADV_COLS = 30;
-      const ADV_ROWS = 16;
-
       let fixedCellPx = 20;
+      let advLayoutKey = null;
 
       const GFX_FLAG =
         '<svg class="cell-gfx cell-gfx--flag" viewBox="0 0 16 22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
@@ -381,8 +381,9 @@
       const STATUS_HEIGHT = 58;
 
       function outerFrameSizeForAdvancedCell(s) {
-        const boardW = BOARD_WRAP_BORDER + ADV_COLS * s;
-        const boardH = BOARD_WRAP_BORDER + ADV_ROWS * s;
+        const g = advancedGridSize();
+        const boardW = BOARD_WRAP_BORDER + g.cols * s;
+        const boardH = BOARD_WRAP_BORDER + g.rows * s;
         const contentW = Math.max(STATUS_MIN_WIDTH, boardW);
         const outerW = OUTER_PAD_BORDER + INNER_PAD_BORDER + contentW;
         const outerH = OUTER_PAD_BORDER + INNER_PAD_BORDER + STATUS_HEIGHT + boardH;
@@ -394,6 +395,28 @@
         const w = vv ? vv.width : document.documentElement.clientWidth || window.innerWidth;
         const h = vv ? vv.height : document.documentElement.clientHeight || window.innerHeight;
         return { w: w, h: h };
+      }
+
+      function isNarrowPortrait() {
+        const p = pageDimensions();
+        return p.w <= NARROW_PORTRAIT_MAX_W && p.h >= p.w;
+      }
+
+      function advancedGridSize() {
+        if (isNarrowPortrait()) return { cols: 16, rows: 30 };
+        return { cols: 30, rows: 16 };
+      }
+
+      function currentAdvLayoutKey() {
+        return isNarrowPortrait() ? "m16x30" : "m30x16";
+      }
+
+      function getLevelConfig(key) {
+        if (key === "advanced") {
+          const g = advancedGridSize();
+          return { rows: g.rows, cols: g.cols, mines: 99 };
+        }
+        return LEVELS_BASE[key];
       }
 
       function computeFixedCell() {
@@ -441,6 +464,17 @@
         requestAnimationFrame(function () {
           requestAnimationFrame(clampCellIfAdvancedOverflows);
         });
+      }
+
+      function onViewportLayoutChange() {
+        const k = currentAdvLayoutKey();
+        if (advLayoutKey !== null && k !== advLayoutKey && levelKey === "advanced") {
+          advLayoutKey = k;
+          newGame();
+          return;
+        }
+        advLayoutKey = k;
+        applyFixedCellSize();
       }
 
       function setMineLcd(n) {
@@ -678,10 +712,11 @@
       }
 
       function newGame() {
+        advLayoutKey = currentAdvLayoutKey();
         clearTimeout(longTimer);
         suppressNextClick = false;
         longFired = false;
-        const L = LEVELS[levelKey];
+        const L = getLevelConfig(levelKey);
         rows = L.rows;
         cols = L.cols;
         mineTotal = L.mines;
@@ -807,14 +842,17 @@
         });
       });
 
-      window.addEventListener("resize", applyFixedCellSize);
+      window.addEventListener("resize", onViewportLayoutChange);
+      window.addEventListener("orientationchange", function () {
+        setTimeout(onViewportLayoutChange, 250);
+      });
       if (window.visualViewport) {
-        window.visualViewport.addEventListener("resize", applyFixedCellSize);
+        window.visualViewport.addEventListener("resize", onViewportLayoutChange);
       }
 
       if (typeof ResizeObserver !== "undefined") {
         const appEl = document.querySelector(".app");
-        if (appEl) new ResizeObserver(applyFixedCellSize).observe(appEl);
+        if (appEl) new ResizeObserver(onViewportLayoutChange).observe(appEl);
       }
 
       setFace("smile");
