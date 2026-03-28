@@ -48,11 +48,39 @@
       min-height: 100dvh;
       display: flex;
       flex-direction: column;
-      align-items: center;
+      align-items: stretch;
       padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
         max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
       box-sizing: border-box;
       min-height: 0;
+    }
+
+    /* 整块游戏横向滚动只在此层；布局尺寸用 layout viewport，避免双指缩放时反复重算 */
+    .game-viewport {
+      width: 100%;
+      max-width: 100%;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-x: auto;
+      overflow-y: visible;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+    }
+
+    .game-viewport > .outer-frame {
+      flex-shrink: 0;
+    }
+
+    @media (min-width: 769px) {
+      .game-viewport {
+        overflow-x: hidden;
+      }
+      .outer-frame {
+        max-width: 100%;
+      }
     }
 
     .menu-bar {
@@ -62,6 +90,9 @@
       flex-wrap: wrap;
       justify-content: center;
       flex-shrink: 0;
+      align-self: center;
+      width: max-content;
+      max-width: 100%;
     }
 
     .menu-bar button {
@@ -93,7 +124,7 @@
       flex-direction: column;
       flex: none;
       width: max-content;
-      max-width: 100%;
+      max-width: none;
       min-width: 0;
       box-sizing: border-box;
     }
@@ -196,7 +227,7 @@
       display: block;
       box-sizing: border-box;
       align-self: center;
-      overflow-x: auto;
+      overflow-x: visible;
       overflow-y: visible;
     }
 
@@ -300,6 +331,7 @@
     <button type="button" data-level="advanced">高级</button>
   </nav>
 
+  <div class="game-viewport">
   <div class="outer-frame">
     <div class="inner-frame">
       <div class="status-bar">
@@ -313,6 +345,7 @@
     </div>
   </div>
   </div>
+  </div>
 
   <script>
     (function () {
@@ -321,8 +354,8 @@
         intermediate: { rows: 16, cols: 16, mines: 40 },
       };
 
-      /** 窄屏竖屏（手机常见）：高级 16×30；否则与 PC 相同 30×16 */
-      const NARROW_PORTRAIT_MAX_W = 640;
+      /** 手机端布局断点：与 CSS (max-width:768px) 一致 */
+      const MOBILE_MAX_WIDTH = 768;
 
       let levelKey = "beginner";
       let rows, cols, mineTotal;
@@ -341,7 +374,9 @@
       const faceBtn = document.getElementById("faceBtn");
 
       let fixedCellPx = 20;
-      let advLayoutKey = null;
+
+      const ADV_COLS = 30;
+      const ADV_ROWS = 16;
 
       const GFX_FLAG =
         '<svg class="cell-gfx cell-gfx--flag" viewBox="0 0 16 22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
@@ -381,46 +416,49 @@
       const STATUS_HEIGHT = 58;
 
       function outerFrameSizeForAdvancedCell(s) {
-        const g = advancedGridSize();
-        const boardW = BOARD_WRAP_BORDER + g.cols * s;
-        const boardH = BOARD_WRAP_BORDER + g.rows * s;
+        const boardW = BOARD_WRAP_BORDER + ADV_COLS * s;
+        const boardH = BOARD_WRAP_BORDER + ADV_ROWS * s;
         const contentW = Math.max(STATUS_MIN_WIDTH, boardW);
         const outerW = OUTER_PAD_BORDER + INNER_PAD_BORDER + contentW;
         const outerH = OUTER_PAD_BORDER + INNER_PAD_BORDER + STATUS_HEIGHT + boardH;
         return { w: outerW, h: outerH };
       }
 
-      function pageDimensions() {
-        const vv = window.visualViewport;
-        const w = vv ? vv.width : document.documentElement.clientWidth || window.innerWidth;
-        const h = vv ? vv.height : document.documentElement.clientHeight || window.innerHeight;
+      /** 布局视口：双指缩放时基本不变，避免 cell 抖动 */
+      function layoutPageDimensions() {
+        const w = document.documentElement.clientWidth || window.innerWidth;
+        const h = document.documentElement.clientHeight || window.innerHeight;
         return { w: w, h: h };
       }
 
-      function isNarrowPortrait() {
-        const p = pageDimensions();
-        return p.w <= NARROW_PORTRAIT_MAX_W && p.h >= p.w;
+      function isMobileLayout() {
+        return layoutPageDimensions().w <= MOBILE_MAX_WIDTH;
       }
 
-      function advancedGridSize() {
-        if (isNarrowPortrait()) return { cols: 16, rows: 30 };
-        return { cols: 30, rows: 16 };
-      }
-
-      function currentAdvLayoutKey() {
-        return isNarrowPortrait() ? "m16x30" : "m30x16";
+      function availableGameHeight() {
+        const p = layoutPageDimensions();
+        const menu = document.querySelector(".menu-bar");
+        const mh = menu ? menu.offsetHeight + 8 : 0;
+        return Math.max(160, p.h - mh);
       }
 
       function getLevelConfig(key) {
         if (key === "advanced") {
-          const g = advancedGridSize();
-          return { rows: g.rows, cols: g.cols, mines: 99 };
+          return { rows: ADV_ROWS, cols: ADV_COLS, mines: 99 };
         }
         return LEVELS_BASE[key];
       }
 
       function computeFixedCell() {
-        const page = pageDimensions();
+        if (isMobileLayout()) {
+          const targetOuterH = availableGameHeight() * 0.9;
+          const boardH =
+            targetOuterH - OUTER_PAD_BORDER - INNER_PAD_BORDER - STATUS_HEIGHT - BOARD_WRAP_BORDER;
+          const cell = Math.floor(boardH / ADV_ROWS);
+          fixedCellPx = Math.max(10, Math.min(80, cell));
+          return fixedCellPx;
+        }
+        const page = layoutPageDimensions();
         const maxOuterW = page.w * 0.9;
         const maxOuterH = page.h * 0.9;
         let lo = 8;
@@ -444,36 +482,53 @@
         if (levelKey !== "advanced") return;
         const outer = document.querySelector(".outer-frame");
         if (!outer) return;
-        const page = pageDimensions();
-        const maxOuterW = page.w * 0.9;
-        const maxOuterH = page.h * 0.9;
         let s = fixedCellPx;
-        while (s > 8) {
-          const r = outer.getBoundingClientRect();
-          if (r.width <= maxOuterW + 1 && r.height <= maxOuterH + 1) break;
-          s -= 1;
-          boardEl.style.setProperty("--cell", s + "px");
-          void outer.offsetWidth;
+        if (isMobileLayout()) {
+          const maxOuterH = availableGameHeight() * 0.9;
+          while (s > 8) {
+            const r = outer.getBoundingClientRect();
+            if (r.height <= maxOuterH + 1) break;
+            s -= 1;
+            boardEl.style.setProperty("--cell", s + "px");
+            void outer.offsetWidth;
+          }
+        } else {
+          const page = layoutPageDimensions();
+          const maxOuterW = page.w * 0.9;
+          const maxOuterH = page.h * 0.9;
+          while (s > 8) {
+            const r = outer.getBoundingClientRect();
+            if (r.width <= maxOuterW + 1 && r.height <= maxOuterH + 1) break;
+            s -= 1;
+            boardEl.style.setProperty("--cell", s + "px");
+            void outer.offsetWidth;
+          }
         }
         fixedCellPx = s;
+      }
+
+      function centerGameViewportScroll() {
+        const host = document.querySelector(".game-viewport");
+        if (!host) return;
+        if (host.scrollWidth <= host.clientWidth + 2) {
+          host.scrollLeft = 0;
+          return;
+        }
+        host.scrollLeft = Math.max(0, (host.scrollWidth - host.clientWidth) / 2);
       }
 
       function applyFixedCellSize() {
         computeFixedCell();
         boardEl.style.setProperty("--cell", fixedCellPx + "px");
         requestAnimationFrame(function () {
-          requestAnimationFrame(clampCellIfAdvancedOverflows);
+          requestAnimationFrame(function () {
+            clampCellIfAdvancedOverflows();
+            centerGameViewportScroll();
+          });
         });
       }
 
-      function onViewportLayoutChange() {
-        const k = currentAdvLayoutKey();
-        if (advLayoutKey !== null && k !== advLayoutKey && levelKey === "advanced") {
-          advLayoutKey = k;
-          newGame();
-          return;
-        }
-        advLayoutKey = k;
+      function onLayoutResize() {
         applyFixedCellSize();
       }
 
@@ -712,7 +767,6 @@
       }
 
       function newGame() {
-        advLayoutKey = currentAdvLayoutKey();
         clearTimeout(longTimer);
         suppressNextClick = false;
         longFired = false;
@@ -842,17 +896,14 @@
         });
       });
 
-      window.addEventListener("resize", onViewportLayoutChange);
+      window.addEventListener("resize", onLayoutResize);
       window.addEventListener("orientationchange", function () {
-        setTimeout(onViewportLayoutChange, 250);
+        setTimeout(onLayoutResize, 250);
       });
-      if (window.visualViewport) {
-        window.visualViewport.addEventListener("resize", onViewportLayoutChange);
-      }
 
       if (typeof ResizeObserver !== "undefined") {
         const appEl = document.querySelector(".app");
-        if (appEl) new ResizeObserver(onViewportLayoutChange).observe(appEl);
+        if (appEl) new ResizeObserver(onLayoutResize).observe(appEl);
       }
 
       setFace("smile");
